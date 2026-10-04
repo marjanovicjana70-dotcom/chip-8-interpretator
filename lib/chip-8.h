@@ -24,7 +24,7 @@ uint16_t register_sp;
 uint16_t stack[16];
 uint8_t memory_space[MEMORY_SIZE];
 
-uint8_t display_screen[SCREEN_HEIGHT * SCREEN_WIDTH];
+uint8_t display_screen[SCREEN_WIDTH][SCREEN_HEIGHT];
 
 
 
@@ -57,7 +57,7 @@ void setupPlatform(emulated_platform em);
 void loadROM(char *file);
 void clean_SDL();
 void startFetching();
-
+void draw();
 
 //64x32 piksela
 

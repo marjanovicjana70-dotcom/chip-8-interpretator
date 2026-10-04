@@ -19,6 +19,7 @@ SDL_Renderer *render;
 void errorMsg(const char *arg){
 
 perror(arg);
+clean_SDL();
 exit(1);
 
 }
@@ -88,6 +89,35 @@ fclose(fp);
 
 }
 
+void draw(){
+    uint32_t pixels[SCREEN_HEIGHT * SCREEN_WIDTH];
+    unsigned int x, y;
+
+        if(flag){
+        memset(pixels, 0, SCREEN_HEIGHT * SCREEN_WIDTH * 4);
+        for(x = 0; x < SCREEN_WIDTH; x++){
+
+            for(y = 0; y < SCREEN_HEIGHT; y++){
+                if(chip8.display_screen[x][y] == 1 ){
+                    pixels[x + (y * 64)] = UINT32_MAX;
+                }
+            }
+        }
+        SDL_UpdateTexture(screen, NULL, pixels, 64 * sizeof(uint32_t));
+        SDL_Rect position;
+        position.x = 0;
+        position.y = 0;
+        position.w = 64;
+        position.h = 32;
+        SDL_RenderCopy(render, screen,NULL, &position);
+        SDL_RenderPresent(render);
+
+    }
+
+
+    flag = 0;
+}
+
 void startFetching(){
 
 uint8_t x, y, firstN, fourthN, key_pressed;
@@ -116,7 +146,7 @@ switch(opcode & 0x00FF){
 
 
 case 0x00E0:
-    flag = true;
+    flag = 1;
     memset(chip8.display_screen, 0, SCREEN_HEIGHT * SCREEN_WIDTH);
     break;
 
@@ -231,7 +261,36 @@ case 0xC000:{
       break;
 
 case 0xD000:
-    //kod
+    {
+        uint8_t x_coord = chip8.v_registers[x];
+        uint8_t y_coord = chip8.v_registers[y];
+        int height = fourthN;
+        uint8_t ands[8] = {128, 64, 32, 16, 8, 4, 2, 1};
+        chip8.v_registers[0xF] = 0;
+        uint8_t pixel;
+        for(int i = 0; i < height; i++){
+            pixel = chip8.register_i + y_coord;
+            for(int j = 0; j < 8; j++){
+
+                if(x_coord + j == SCREEN_WIDTH){
+                    x_coord = -j;
+                }
+
+                if(y_coord + i == SCREEN_HEIGHT){
+                    y_coord = -i;
+                } 
+                if(chip8.display_screen[x_coord + j][y_coord + i] == 1 && ((chip8.memory_space[chip8.register_i + i] & ands[j]) >> (8 - j - 1)) == 1){
+                chip8.v_registers[0xF] = 1;
+                }
+                chip8.display_screen[x_coord + j][y_coord + i] = chip8.display_screen[x_coord + j][y_coord + i] ^ ((chip8.memory_space[chip8.register_i + i] & ands[j]) >> (8 - j - 1));
+            }
+
+            x_coord = chip8.v_registers[x];
+            y_coord = chip8.v_registers[y];
+
+        }
+        flag = 1;
+    }
     break;
 
 case 0xE000:{
@@ -239,12 +298,15 @@ case 0xE000:{
 switch(opcode & 0x00FF){
 
 case 0x009E:
-    if(chip8.keyboard[])
-    //kod
+    if(chip8.keyboard[chip8.v_registers[x]] == 1){
+        chip8.register_pc += 2;
+    }
     break;
 
 case 0x00A1:
-    //kod
+     if(chip8.keyboard[chip8.v_registers[x]] == 0){
+        chip8.register_pc += 2;
+    }
     break;
 
 }
@@ -359,11 +421,106 @@ setupPlatform(chip8);
 loadROM(argv[1]);
 
 
-
+int32_t speed = 5;
 
 while(!stop){
 
+while(SDL_PollEvent(&event)){
+
+switch(event.type){
+
+case SDL_QUIT:
+    stop = 1;
+    break;
+
+case SDL_KEYDOWN:
+    //kod
+    {
+        switch(event.key.keysym.sym){
+
+            case SDLK_ESCAPE:
+            stop = 1;
+            break;
+
+            case SDLK_F1:
+            setupPlatform(chip8);
+            loadROM(argv[1]);
+            break;
+
+            case SDLK_F2:
+            speed -= 1;
+            break;
+
+            case SDLK_F3:
+            speed += 1;
+            break;
+
+            case SDLK_x: chip8.keyboard[0] = 1; break;
+case SDLK_1: chip8.keyboard[1] = 1; break;
+case SDLK_2: chip8.keyboard[2] = 1; break;
+case SDLK_3: chip8.keyboard[3] = 1; break;
+case SDLK_q: chip8.keyboard[4] = 1; break;
+case SDLK_w: chip8.keyboard[5] = 1; break;
+case SDLK_e: chip8.keyboard[6] = 1; break;
+case SDLK_a: chip8.keyboard[7] = 1; break;
+case SDLK_s: chip8.keyboard[8] = 1; break;
+case SDLK_d: chip8.keyboard[9] = 1; break;
+case SDLK_z: chip8.keyboard[0xA] = 1; break;
+case SDLK_c: chip8.keyboard[0xB] = 1; break;
+case SDLK_4: chip8.keyboard[0xC] = 1; break;
+case SDLK_r: chip8.keyboard[0xD] = 1; break;
+case SDLK_f: chip8.keyboard[0xE] = 1; break;
+case SDLK_v: chip8.keyboard[0xF] = 1; break;
+
+        }
+    }
+    break;
+
+case SDL_KEYUP:
+    {
+
+        switch (event.key.keysym.sym)
+{
+    case SDLK_x: chip8.keyboard[0] = 0; break;
+    case SDLK_1: chip8.keyboard[1] = 0; break;
+    case SDLK_2: chip8.keyboard[2] = 0; break;
+    case SDLK_3: chip8.keyboard[3] = 0; break;
+    case SDLK_q: chip8.keyboard[4] = 0; break;
+    case SDLK_w: chip8.keyboard[5] = 0; break;
+    case SDLK_e: chip8.keyboard[6] = 0; break;
+    case SDLK_a: chip8.keyboard[7] = 0; break;
+    case SDLK_s: chip8.keyboard[8] = 0; break;
+    case SDLK_d: chip8.keyboard[9] = 0; break;
+    case SDLK_z: chip8.keyboard[0xA] = 0; break;
+    case SDLK_c: chip8.keyboard[0xB] = 0; break;
+    case SDLK_4: chip8.keyboard[0xC] = 0; break;
+    case SDLK_r: chip8.keyboard[0xD] = 0; break;
+    case SDLK_f: chip8.keyboard[0xE] = 0; break;
+    case SDLK_v: chip8.keyboard[0xF] = 0; break;
+}
+    }
+    break;
+
+
+
+}
+break;
+
+}
+
+if(speed < 0){
+    speed = 0;
+}
+else {
+    SDL_Delay(speed);
+}
+
+if(chip8.register_dt > 0){
+    chip8.register_dt--;
+}
+
 startFetching();
+draw();
 
 }
 

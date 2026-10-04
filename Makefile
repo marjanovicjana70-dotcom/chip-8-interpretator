@@ -1,15 +1,16 @@
 CC = gcc
-LIB = chip-8
-TARGET = chip-8.h
 SRC = src/chip-8.c
-
-
-CC_FLAGS = -Wall -Wextra -pedantic -std=99
-
-.PHONY all clear
+CC_FLAGS = -Wall -Wextra -pedantic -fPIC
+TARGET = chip-8
+INC_PATH = -I lib
+.PHONY: all clean
 
 all: $(TARGET)
-	make $(TARGET)
 
-$(TARGET): 
+$(TARGET): $(SRC)
+	$(CC) $< $(CC_FLAGS) $(INC_PATH) -o $@ -lSDL2 
 
+clean:
+	rm -f $(TARGET)
+	
+	
