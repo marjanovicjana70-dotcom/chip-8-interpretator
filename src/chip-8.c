@@ -36,7 +36,7 @@ SDL_Quit();
 
 }
 
-void setupPlatform(emulated_platform chip8){
+void setupPlatform(void){
 
 chip8.register_i = 0x0;
 
@@ -47,7 +47,7 @@ chip8.register_pc = 0x200;
 chip8.register_sp = 0x0;
 
 memset(chip8.memory_space, 0x00, MEMORY_SIZE);
-memset(chip8.stack, 0x00, 16);
+memset(chip8.stack, 0x00, 16 * sizeof(uint16_t));
 memset(chip8.display_screen, 0x00, (SCREEN_HEIGHT * SCREEN_WIDTH));
 memset(chip8.v_registers, 0x00, 16);
 memset(chip8.keyboard, 0x00 , 16); 
@@ -78,7 +78,7 @@ fseek(fp, 0, SEEK_SET);
 
 if(size > (MEMORY_SIZE - 512)){
 
-errorMsg("Nedovoljno prostora");
+errorMsg("Not enough space");
 
 }
 
@@ -95,11 +95,11 @@ void draw(){
 
         if(flag){
         memset(pixels, 0, SCREEN_HEIGHT * SCREEN_WIDTH * 4);
-        for(x = 0; x < SCREEN_WIDTH; x++){
+        for(y = 0; y < SCREEN_HEIGHT; y++){
 
-            for(y = 0; y < SCREEN_HEIGHT; y++){
-                if(chip8.display_screen[x][y] == 1 ){
-                    pixels[x + (y * 64)] = UINT32_MAX;
+            for(x = 0; x < SCREEN_WIDTH; x++){
+                if(chip8.display_screen[y][x] == 1 ){
+                   pixels[x + (y * SCREEN_WIDTH)] = UINT32_MAX;
                 }
             }
         }
@@ -122,7 +122,7 @@ void startFetching(){
 
 uint8_t x, y, firstN, fourthN, key_pressed;
 
-
+uint8_t jump = 0;
 
 uint16_t opcode = ( chip8.memory_space[chip8.register_pc] << 8 ) | chip8.memory_space[chip8.register_pc + 1];
 
@@ -135,8 +135,6 @@ fourthN = opcode & 0x0F;
 
 uint8_t nn = opcode & 0xFF;
 uint16_t nnn = opcode & 0xFFF;
-
-chip8.register_pc+=2;
 
 switch(opcode & 0xF000){
 
@@ -161,10 +159,12 @@ case 0x00EE:
 break;
 
 case 0x1000:
+    jump = 1;
     chip8.register_pc = nnn;
     break;
 
 case 0x2000:
+    jump = 1;
     chip8.stack[chip8.register_sp] = chip8.register_pc;
     chip8.register_pc = nnn;
     chip8.register_sp++;
@@ -172,7 +172,6 @@ case 0x2000:
 
 case 0x3000:
     if(chip8.v_registers[x] == nn) chip8.register_pc+=2;
-    break;
     break;
 
 case 0x4000:
@@ -189,6 +188,7 @@ case 0x6000:
     
 case 0x7000:
     chip8.v_registers[x] += nn;
+    break;
 
 case 0x8000:
     switch(opcode & 0x000F){
@@ -238,7 +238,35 @@ case 0x8000:
     break;
 
 
+    case 0x0006:
+    chip8.v_registers[0xF] = chip8.v_registers[x] & 0x1;
+    chip8.v_registers[x] >>= 0x1;
+    break;
+
+    case 0x0007:
+    //kod
+    {
+    if(chip8.v_registers[y] < chip8.v_registers[x]){
+        chip8.v_registers[0xF] = 0;
+    }
+    else {
+         chip8.v_registers[0xF] = 1;
+    }
+    chip8.v_registers[x] = chip8.v_registers[y] - chip8.v_registers[x];
 }
+    break;
+
+
+    case 0x000E:
+{
+    chip8.v_registers[0xF] = chip8.v_registers[x] >> 7;
+    chip8.v_registers[x] <<= 0x1;
+
+}
+break;
+
+}
+break; 
 
 case 0x9000:
     if(chip8.v_registers[x] != chip8.v_registers[y]) chip8.register_pc += 2;
@@ -250,10 +278,11 @@ case 0xA000:
 
 case 0xB000:
     chip8.register_pc = (nnn + chip8.v_registers[0]);
+    jump = 1;
     break;
 
 case 0xC000:{
-    srand((unsigned int) time(NULL));
+    srand(time(NULL));
     uint8_t bajt = rand() % 256;
     chip8.v_registers[x] = (nn & bajt);
   
@@ -262,35 +291,34 @@ case 0xC000:{
 
 case 0xD000:
     {
-        uint8_t x_coord = chip8.v_registers[x];
-        uint8_t y_coord = chip8.v_registers[y];
-        int height = fourthN;
-        uint8_t ands[8] = {128, 64, 32, 16, 8, 4, 2, 1};
-        chip8.v_registers[0xF] = 0;
-        uint8_t pixel;
-        for(int i = 0; i < height; i++){
-            pixel = chip8.register_i + y_coord;
-            for(int j = 0; j < 8; j++){
 
-                if(x_coord + j == SCREEN_WIDTH){
-                    x_coord = -j;
+
+       uint8_t x_coord = chip8.v_registers[x];
+       uint8_t y_coord = chip8.v_registers[y];
+       chip8.v_registers[0xF] = 0;
+       uint8_t pixel;
+        for(int i = 0; i < fourthN; i++){
+
+            pixel = chip8.memory_space[chip8.register_i + i];
+            for(int j = 0; j < 8; j ++){
+                x_coord = ((chip8.v_registers[x] + j) % SCREEN_WIDTH + SCREEN_WIDTH) % SCREEN_WIDTH;
+                y_coord = ((chip8.v_registers[y]+ i ) % SCREEN_HEIGHT + SCREEN_HEIGHT) % SCREEN_HEIGHT;
+
+
+                if(chip8.display_screen[y_coord][x_coord]  == 1 && ((pixel & (0x80 >> j)) != 0)){
+                    chip8.v_registers[0xF] = 1;
+
                 }
 
-                if(y_coord + i == SCREEN_HEIGHT){
-                    y_coord = -i;
-                } 
-                if(chip8.display_screen[x_coord + j][y_coord + i] == 1 && ((chip8.memory_space[chip8.register_i + i] & ands[j]) >> (8 - j - 1)) == 1){
-                chip8.v_registers[0xF] = 1;
-                }
-                chip8.display_screen[x_coord + j][y_coord + i] = chip8.display_screen[x_coord + j][y_coord + i] ^ ((chip8.memory_space[chip8.register_i + i] & ands[j]) >> (8 - j - 1));
+                chip8.display_screen[y_coord][x_coord] ^= (pixel & (0x80 >> j)) != 0 ? 1 : 0;
             }
-
             x_coord = chip8.v_registers[x];
             y_coord = chip8.v_registers[y];
-
         }
-        flag = 1;
-    }
+
+    flag = 1;
+        }
+       
     break;
 
 case 0xE000:{
@@ -298,13 +326,13 @@ case 0xE000:{
 switch(opcode & 0x00FF){
 
 case 0x009E:
-    if(chip8.keyboard[chip8.v_registers[x]] == 1){
+    if(chip8.keyboard[(chip8.v_registers[x] & 0x000F)] == 1){
         chip8.register_pc += 2;
     }
     break;
 
 case 0x00A1:
-     if(chip8.keyboard[chip8.v_registers[x]] == 0){
+     if(chip8.keyboard[(chip8.v_registers[x] & 0x000F)] == 0){
         chip8.register_pc += 2;
     }
     break;
@@ -324,14 +352,21 @@ case 0xF000:{
             break;
 
             case 0x000A:
-             key_pressed = 0;
-            for(int i=0; i<16;i++){
-                if( chip8.keyboard[i] ){
+           {
+            key_pressed = 0;
+            uint8_t idx;
+            for(idx = 0; idx < 16; idx++){
+                if(chip8.keyboard[idx]==1){
                     key_pressed = 1;
-                    chip8.v_registers[x] = i;
-
+                    chip8.v_registers[x] = idx;
+                    break;
                 }
             }
+            if(key_pressed == 0){
+                chip8.register_pc -= 2;
+            }
+
+           }
             break;
 
             case 0x0015:
@@ -348,7 +383,7 @@ case 0xF000:{
             break;
 
             case 0x0029:
-            chip8.register_i = 5 * chip8.v_registers[x];
+            chip8.register_i = 5 * (chip8.v_registers[x] & 0xF);
             break;
 
             case 0x0033:{
@@ -356,21 +391,21 @@ case 0xF000:{
                 chip8.memory_space[chip8.register_i] = (vX - (vX % 100) ) / 100;
                 vX -= chip8.memory_space[chip8.register_i] * 100;
                 chip8.memory_space[chip8.register_i + 1] = (vX - (vX % 10)) / 10;
-                vX -= chip8.memory_space[chip8.register_i] * 10;
+                vX -= chip8.memory_space[chip8.register_i + 1] * 10;
                 chip8.memory_space[chip8.register_i + 2] = vX;
             }
             
             break;
             
             case 0x0055:
-            for(uint8_t i = 0; i < x; i++){
+            for(uint8_t i = 0; i <= x; i++){
                 chip8.memory_space[chip8.register_i + i] = chip8.v_registers[i];
 
             }
             break;
 
             case 0x0065:
-            for(uint8_t i = 0; i < x; i++){
+            for(uint8_t i = 0; i <= x; i++){
                 chip8.v_registers[i] = chip8.memory_space[chip8.register_i + i];
             }
             break;
@@ -385,7 +420,9 @@ case 0xF000:{
 
 
 }
-
+if(!jump){
+    chip8.register_pc += 2;
+}
 }
 
 
@@ -415,7 +452,7 @@ SDL_RenderClear(render);
 
 screen = SDL_CreateTexture(render, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING,64,32);
 
-setupPlatform(chip8);
+setupPlatform();
 
 
 loadROM(argv[1]);
@@ -434,7 +471,7 @@ case SDL_QUIT:
     break;
 
 case SDL_KEYDOWN:
-    //kod
+    
     {
         switch(event.key.keysym.sym){
 
@@ -443,7 +480,7 @@ case SDL_KEYDOWN:
             break;
 
             case SDLK_F1:
-            setupPlatform(chip8);
+            setupPlatform();
             loadROM(argv[1]);
             break;
 

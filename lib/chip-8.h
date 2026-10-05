@@ -24,7 +24,7 @@ uint16_t register_sp;
 uint16_t stack[16];
 uint8_t memory_space[MEMORY_SIZE];
 
-uint8_t display_screen[SCREEN_WIDTH][SCREEN_HEIGHT];
+uint8_t display_screen[SCREEN_HEIGHT][SCREEN_WIDTH];
 
 
 
@@ -33,7 +33,7 @@ uint8_t display_screen[SCREEN_WIDTH][SCREEN_HEIGHT];
 
 
 
-const uint8_t font_set[80]= {
+uint8_t font_set[80]= {
 0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
 0x20, 0x60, 0x20, 0x20, 0x70, // 1
 0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
@@ -53,7 +53,7 @@ const uint8_t font_set[80]= {
 };
 
 
-void setupPlatform(emulated_platform em);
+void setupPlatform(void);
 void loadROM(char *file);
 void clean_SDL();
 void startFetching();
